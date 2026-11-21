@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowCraft Studio — Visual Workflow & Production Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Theme & Canvas Styling matching Dark Plum / Deep Aubergine Reference */
+        :root {
+            --bg-app: #171020;
+            --bg-topbar: #1a1224;
+            --bg-surface: #251b32;
+            --bg-elevated: #2e223d;
+            --border-subtle: #3d2e52;
+            --border-active: #b388eb;
+            --text-primary: #f3e8ff;
+            --text-secondary: #9f91b3;
+            --accent-purple: #8b5cf6;
+            --accent-lilac: #b388eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        input, textarea, select {
+            user-select: text;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .font-mono-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #433359;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b4e90;
+        }
+
+        /* Back Button matching Reference Screenshot */
+        .btn-back-dashboard {
+            background-color: #281d36;
+            border: 1px solid #483660;
+            color: #e2d9f3;
+            transition: all 0.15s ease;
+        }
+        .btn-back-dashboard:hover {
+            background-color: #342646;
+            border-color: #7c5ca6;
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(179, 136, 235, 0.2);
+        }
+
+        /* Chrome-like Tab Bar */
+        .tab-bar {
+            background-color: #140e1c;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .chrome-tab {
+            position: relative;
+            background-color: #1d1429;
+            color: #9f91b3;
+            border: 1px solid transparent;
+            border-bottom: none;
+            transition: all 0.15s ease;
+        }
+
+        .chrome-tab:hover:not(.active) {
+            background-color: #241933;
+            color: #e9d8fd;
+        }
+
+        .chrome-tab.active {
+            background-color: var(--bg-surface);
+            color: #ffffff;
+            border-color: var(--border-subtle);
+            box-shadow: 0 2px 0 0 var(--bg-surface);
+            z-index: 10;
+        }
+
+        .chrome-tab.active::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 8px;
+            right: 8px;
+            height: 2px;
+            background: linear-gradient(90deg, #8b5cf6, #c084fc);
+            border-radius: 999px;
+        }
+
+        /* Infinite Canvas Grid */
+        #canvas-viewport {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #171020;
+            cursor: grab;
+        }
+
+        #canvas-viewport.panning {
+            cursor: grabbing;
+        }
+
+        #canvas-grid {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image: radial-gradient(#342747 1.3px, transparent 1.3px);
+            background-size: 24px 24px;
+        }
+
+        #canvas-world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        /* Workflow Node Card */
+        .wf-node {
+            position: absolute;
+            width: 290px;
+            background-color: #251b32;
+            border: 1.5px solid #3d2e52;
+            border-radius: 12px;
+            box-shadow: 0 12px 28px -5px rgba(10, 5, 18, 0.65), 0 4px 10px -2px rgba(10, 5, 18, 0.4);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            cursor: grab;
+            z-index: 10;
+        }
+
+        .wf-node:hover {
+            border-color: #5b457a;
+        }
+
+        .wf-node.selected {
+            border-color: #b388eb;
+            box-shadow: 0 0 0 3px rgba(179, 136, 235, 0.25), 0 16px 32px -5px rgba(10, 5, 18, 0.8);
+            z-index: 20;
+        }
+
+        .wf-node.dragging {
+            cursor: grabbing;
+            opacity: 0.96;
+            z-index: 30;
+        }
+
+        /* Connection Ports */
+        .node-port {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #2e223d;
+            border: 2.5px solid #7e679e;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: crosshair;
+            transition: all 0.15s ease;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .node-port::after {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: transparent;
+            transition: background-color 0.15s ease;
+        }
+
+        .node-port:hover, .node-port.port-highlight {
+            transform: translateY(-50%) scale(1.3);
+            border-color: #c084fc;
+            background-color: #6b21a8;
+            box-shadow: 0 0 10px rgba(192, 132, 252, 0.65);
+        }
+
+        .node-port:hover::after, .node-port.port-highlight::after {
+            background-color: #ffffff;
+        }
+
+        .port-in {
+            left: -9px;
+        }
+
+        .port-out {
+            right: -9px;
+        }
+
+        /* SVG Edges */
+        #connections-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 10000px;
+            height: 10000px;
+            pointer-events: none;
+            overflow: visible;
+            z-index: 5;
+        }
+
+        .edge-group {
+            pointer-events: stroke;
+            cursor: pointer;
+        }
+
+        .edge-hitarea {
+            fill: none;
+            stroke: transparent;
+            stroke-width: 16px;
+        }
+
+        .edge-path {
+            fill: none;
+            stroke: #7e679e;
+            stroke-width: 2.5px;
+            transition: stroke 0.15s ease, stroke-width 0.15s ease;
+        }
+
+        .edge-group:hover .edge-path {
+            stroke: #f87171;
+            stroke-width: 3.5px;
+        }
+
+        .edge-draft {
+            fill: none;
+            stroke: #c084fc;
+            stroke-width: 2.5px;
+            stroke-dasharray: 6 4;
+            pointer-events: none;
+        }
+
+        /* Toast Notification */
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .toast-anim {
+            animation: slideUpFade 0.2s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden">
+
+    <!-- 1. CHROME-LIKE MULTI-TAB WORKSPACE BAR + BACK BUTTON -->
+    <header class="tab-bar flex items-center px-2.5 pt-1.5 pb-0.5 gap-2 h-11 shrink-0 select-none">
+        <!-- Back to Main Dashboard Button (index.html) -->
+        <a href="index.html" title="Kembali ke Dashboard Utama (index.html)" class="btn-back-dashboard mb-1 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase flex items-center gap-1.5 shrink-0 no-underline">
+            <svg class="w-3.5 h-3.5 text-[#b388eb]" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+            </svg>
+            <span>KEMBALI</span>
+        </a>
+
+        <div class="h-4 w-[1px] bg-[#3d2e52] mb-1 shrink-0"></div>
+
+        <!-- App Brand Mini Badge -->
+        <div class="flex items-center gap-1.5 px-1.5 py-1 mb-0.5 text-xs font-bold text-[#c084fc] tracking-wide shrink-0">
+            <svg class="w-4 h-4 text-[#a855f7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                <path d="M10 6.5h4a2 2 0 0 1 2 2v3.5"/>
+                <path d="M13 10l3 3 3-3"/>
+            </svg>
+            <span class="hidden sm:inline">FlowCraft</span>
+        </div>
+
+        <!-- Tabs Container -->
+        <div id="tabs-container" class="flex items-end gap-1 overflow-x-auto no-scrollbar self-end max-w-[calc(100vw-320px)]">
+            <!-- Tabs injected by JS -->
+        </div>
+
+        <!-- New Tab Button (+) -->
+        <button id="btn-new-tab" title="Buat Kanvas / Tab Baru" class="mb-1 p-1.5 rounded-lg text-[#9f91b3] hover:text-white hover:bg-[#2e223d] transition flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+        </button>
+
+        <!-- Duplicate Active Tab Button -->
+        <button id="btn-duplicate-tab" title="Duplikat Tab Aktif (Untuk Eksperimen)" class="mb-1 ml-auto px-2.5 py-1 rounded-lg text-xs font-medium text-[#e9d8fd] bg-[#2a1f38] hover:bg-[#362847] border border-[#6b4e90] transition flex items-center gap-1.5 shrink-0">
+            <svg class="w-3.5 h-3.5 text-[#c084fc]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span class="hidden md:inline">Duplikat Tab</span>
+        </button>
+    </header>
+
+    <!-- 2. TOP TOOLBAR & WORKFLOW SUMMARY BAR -->
+    <div class="bg-[#251b32] border-b border-[#3d2e52] px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20">
+        <!-- Left Actions: Add Node & Summary Stats -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <button id="btn-add-node" class="px-3 py-1.5 rounded-lg bg-[#2a1f38] hover:bg-[#38294a] active:bg-[#433159] text-[#e9d8fd] border border-[#6b4e90] text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-[#c084fc]" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                </svg>
+                <span>Tambah Kategori</span>
+            </button>
+
+            <div class="h-5 w-[1px] bg-[#3d2e52] mx-0.5 hidden sm:block"></div>
+
+            <!-- Live Summary Pills -->
+            <div class="flex items-center gap-2 text-xs">
+                <div class="px-2.5 py-1 rounded-md bg-[#1d1429] border border-[#3d2e52] flex items-center gap-1.5" title="Jumlah Tahapan / Kategori">
+                    <span class="w-2 h-2 rounded-full bg-[#b388eb]"></span>
+                    <span class="text-[#9f91b3]">Tahapan:</span>
+                    <span id="stat-nodes" class="font-semibold text-[#f3e8ff] font-mono-code">0</span>
+                </div>
+
+                <div class="px-2.5 py-1 rounded-md bg-[#1d1429] border border-[#3d2e52] flex items-center gap-1.5" title="Akumulasi Estimasi Waktu Produksi">
+                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path stroke-linecap="round" d="M12 7v5l3 2"/>
+                    </svg>
+                    <span class="text-[#9f91b3] hidden md:inline">Total Waktu:</span>
+                    <span id="stat-time" class="font-semibold text-amber-300 font-mono-code">0 Menit</span>
+                </div>
+
+                <button id="btn-view-tools" class="px-2.5 py-1 rounded-md bg-[#1d1429] hover:bg-[#2e223d] border border-[#3d2e52] flex items-center gap-1.5 transition" title="Lihat Semua Rekap Alat & Bahan">
+                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                    </svg>
+                    <span class="text-[#9f91b3] hidden md:inline">Alat & Bahan:</span>
+                    <span id="stat-tools" class="font-semibold text-emerald-300 font-mono-code">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Actions: Import JSON, Export JSON, Export PNG HD -->
+        <div class="flex items-center gap-1.5">
+            <!-- Hidden File Input for JSON Import -->
+            <input type="file" id="input-import-json" accept=".json,application/json" class="hidden">
+
+            <button id="btn-import-json" title="Import File JSON (Otomatis Buka di Tab Baru)" class="px-2.5 py-1.5 rounded-lg bg-[#1d1429] hover:bg-[#2e223d] text-[#e9d8fd] border border-[#4b3963] text-xs font-medium transition flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-[#c084fc]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5-5m0 0l5 5m-5-5v12"/>
+                </svg>
+                <span>Import JSON</span>
+            </button>
+
+            <button id="btn-export-json" title="Simpan Data Tab Ini ke JSON" class="px-2.5 py-1.5 rounded-lg bg-[#1d1429] hover:bg-[#2e223d] text-[#e9d8fd] border border-[#4b3963] text-xs font-medium transition flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-[#b388eb]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5m0 0l5-5m-5 5V3"/>
+                </svg>
+                <span>Export JSON</span>
+            </button>
+
+            <button id="btn-export-png" title="Export Diagram Alur ke PNG Resolusi Tinggi (Auto-Crop Anti-Blur)" class="px-3 py-1.5 rounded-lg bg-[#7e57c2] hover:bg-[#8b5cf6] active:bg-[#6d28d9] text-white text-xs font-semibold shadow-sm shadow-purple-950/60 transition flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <path d="M21 15l-5-5L5 21"/>
+                </svg>
+                <span>Export PNG (HD)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. MAIN WORKSPACE AREA (CANVAS + RIGHT INSPECTOR) -->
+    <div class="flex-1 flex relative overflow-hidden">
+
+        <!-- INFINITE INTERACTIVE CANVAS -->
+        <div id="canvas-viewport">
+            <div id="canvas-grid"></div>
+
+            <!-- Transformed World Layer -->
+            <div id="canvas-world">
+                <!-- SVG Connections Layer -->
+                <svg id="connections-layer">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#7e679e" />
+                        </marker>
+                        <marker id="arrowhead-hover" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#f87171" />
+                        </marker>
+                        <marker id="arrowhead-draft" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#c084fc" />
+                        </marker>
+                    </defs>
+                    <g id="edges-group"></g>
+                    <path id="draft-edge" class="edge-draft hidden" marker-end="url(#arrowhead-draft)"></path>
+                </svg>
+
+                <!-- Nodes Layer -->
+                <div id="nodes-layer"></div>
+            </div>
+
+            <!-- Bottom-Left Canvas Controls & Help Hint -->
+            <div class="absolute bottom-4 left-4 flex items-center gap-2 z-20">
+                <div class="flex items-center bg-[#251b32]/95 backdrop-blur border border-[#3d2e52] rounded-xl p-1 shadow-lg">
+                    <button id="btn-zoom-out" title="Zoom Out" class="p-1.5 rounded-lg text-[#e9d8fd] hover:text-white hover:bg-[#342646] transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 12h14"/></svg>
+                    </button>
+                    <span id="zoom-label" class="px-2 text-xs font-mono-code text-[#e9d8fd] min-w-[52px] text-center">100%</span>
+                    <button id="btn-zoom-in" title="Zoom In" class="p-1.5 rounded-lg text-[#e9d8fd] hover:text-white hover:bg-[#342646] transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14m-7-7h14"/></svg>
+                    </button>
+                    <div class="h-4 w-[1px] bg-[#3d2e52] mx-1"></div>
+                    <button id="btn-fit-view" title="Tengahkan Semua Diagram (Fit View)" class="px-2 py-1 rounded-lg text-xs font-semibold text-[#c084fc] hover:bg-[#342646] transition">
+                        Fit View
+                    </button>
+                </div>
+
+                <div class="hidden lg:flex items-center gap-2 bg-[#251b32]/90 backdrop-blur border border-[#3d2e52] rounded-xl px-3 py-1.5 text-[11px] text-[#9f91b3] shadow-lg">
+                    <span>💡 <strong class="text-[#e9d8fd]">Tips:</strong> Tarik titik kanan ke titik kiri kotak lain untuk bikin panah • Klik panah untuk hapus • Klik ganda kanvas untuk tambah kategori</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE INSPECTOR PANEL -->
+        <aside id="inspector-panel" class="w-80 sm:w-96 bg-[#251b32] border-l border-[#3d2e52] flex flex-col h-full shrink-0 z-30 transition-all duration-200 hidden">
+            <!-- Inspector Header -->
+            <div class="px-4 py-3 border-b border-[#3d2e52] flex items-center justify-between bg-[#2b203a]">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#b388eb]"></span>
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-[#e9d8fd]">Detail Kategori / Tahapan</h2>
+                </div>
+                <button id="btn-close-inspector" title="Tutup Panel" class="p-1 rounded-lg text-[#9f91b3] hover:text-white hover:bg-[#3a2b4d] transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Inspector Scrollable Content -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-5">
+                <!-- Title -->
+                <div>
+                    <label class="block text-xs font-semibold text-[#d8b4fe] mb-1.5">Nama Kategori / Tahapan</label>
+                    <input type="text" id="insp-title" placeholder="Contoh: Tahap 1 - Persiapan Bahan" class="w-full px-3 py-2 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-sm text-white placeholder-[#6d5c85]">
+                </div>
+
+                <!-- Status & Estimated Time -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-[#d8b4fe] mb-1.5">Status Alur</label>
+                        <select id="insp-status" class="w-full px-2.5 py-2 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-xs text-white">
+                            <option value="draft">Draft / Rencana</option>
+                            <option value="ready">Siap Jalan</option>
+                            <option value="progress">Sedang Proses</option>
+                            <option value="review">Butuh Revisi / QC</option>
+                            <option value="done">Selesai</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-[#d8b4fe] mb-1.5">Waktu Pengerjaan</label>
+                        <div class="flex gap-1">
+                            <input type="number" id="insp-time-val" min="0" step="0.5" placeholder="0" class="w-16 px-2 py-2 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-xs font-mono-code text-white">
+                            <select id="insp-time-unit" class="flex-1 px-1.5 py-2 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-xs text-white">
+                                <option value="Menit">Menit</option>
+                                <option value="Jam">Jam</option>
+                                <option value="Hari">Hari</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tools & Materials (Alat & Bahan) -->
+                <div class="pt-2 border-t border-[#362847]">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                            <span>Alat & Bahan yang Diperlukan</span>
+                        </label>
+                    </div>
+                    <div class="flex gap-1.5 mb-2.5">
+                        <input type="text" id="insp-tool-input" placeholder="Ketik alat/bahan lalu Enter..." class="flex-1 px-3 py-1.5 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-emerald-400 focus:outline-none text-xs text-white placeholder-[#6d5c85]">
+                        <button id="btn-add-tool" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/35 text-xs font-semibold transition">Tambah</button>
+                    </div>
+                    <div id="insp-tools-list" class="flex flex-wrap gap-1.5">
+                        <!-- Tool tags injected here -->
+                    </div>
+                </div>
+
+                <!-- Checklist / Sub-Tugas -->
+                <div class="pt-2 border-t border-[#362847]">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-semibold text-[#c084fc] flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Checklist Langkah Kerja</span>
+                        </label>
+                    </div>
+                    <div class="flex gap-1.5 mb-2.5">
+                        <input type="text" id="insp-check-input" placeholder="Tambah item langkah kerja..." class="flex-1 px-3 py-1.5 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-xs text-white placeholder-[#6d5c85]">
+                        <button id="btn-add-check" class="px-3 py-1.5 rounded-lg bg-[#7e57c2]/25 hover:bg-[#7e57c2]/40 text-[#d8b4fe] border border-[#7e57c2]/45 text-xs font-semibold transition">Tambah</button>
+                    </div>
+                    <div id="insp-checklist" class="space-y-1.5">
+                        <!-- Checklist items injected here -->
+                    </div>
+                </div>
+
+                <!-- Notes / SOP -->
+                <div class="pt-2 border-t border-[#362847]">
+                    <label class="block text-xs font-semibold text-[#d8b4fe] mb-1.5">Catatan / SOP Produksi</label>
+                    <textarea id="insp-notes" rows="3" placeholder="Tulis catatan teknis, standar kualitas, atau referensi..." class="w-full px-3 py-2 rounded-lg bg-[#181122] border border-[#3d2e52] focus:border-[#b388eb] focus:outline-none text-xs text-[#f3e8ff] placeholder-[#6d5c85] resize-none"></textarea>
+                </div>
+            </div>
+
+            <!-- Inspector Footer Actions -->
+            <div class="p-3 border-t border-[#3d2e52] bg-[#2b203a] flex items-center justify-between gap-2">
+                <button id="btn-dup-node" class="flex-1 py-2 px-3 rounded-lg bg-[#2a1f38] hover:bg-[#38294a] border border-[#6b4e90] text-[#e9d8fd] text-xs font-medium transition flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-[#c084fc]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Duplikat Kotak</span>
+                </button>
+                <button id="btn-del-node" class="py-2 px-3 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/35 text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <span>Hapus</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- MODAL: ALL TOOLS & MATERIALS SUMMARY -->
+    <div id="modal-tools" class="fixed inset-0 bg-[#0d0814]/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-[#251b32] border border-[#4b3963] rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-[#3d2e52] flex items-center justify-between bg-[#2b203a]">
+                <h3 class="text-sm font-bold text-[#f3e8ff] flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                    <span>Rekap Seluruh Alat & Bahan (Tab Aktif)</span>
+                </h3>
+                <button id="btn-close-tools-modal" class="text-[#9f91b3] hover:text-white p-1 rounded-lg">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="modal-tools-body" class="p-5 max-h-80 overflow-y-auto space-y-2 text-xs">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="px-5 py-3 border-t border-[#3d2e52] bg-[#2b203a] flex justify-end">
+                <button id="btn-ok-tools-modal" class="px-4 py-1.5 rounded-lg bg-[#7e57c2] hover:bg-[#8b5cf6] text-white text-xs font-semibold">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /**
+         * FlowCraft Studio — Visual Workflow & Production Planner
+         * Dark Plum / Deep Aubergine Theme matching Wagala Animation Suite
+         */
+
+        const STORAGE_KEY = 'flowcraft_studio_workspaces_v1';
+
+        // Status Configuration Dictionary (Adapted to Dark Plum Theme)
+        const STATUS_META = {
+            draft:    { label: 'Draft',        bg: 'rgba(159, 145, 179, 0.16)', text: '#d8b4fe', border: '#6b4e90', dot: '#b388eb' },
+            ready:    { label: 'Siap Jalan',   bg: 'rgba(96, 165, 250, 0.16)',  text: '#93c5fd', border: '#3b82f6', dot: '#60a5fa' },
+            progress: { label: 'Proses',       bg: 'rgba(251, 191, 36, 0.16)',  text: '#fcd34d', border: '#d97706', dot: '#fbbf24' },
+            review:   { label: 'Butuh Revisi', bg: 'rgba(248, 113, 113, 0.16)', text: '#fca5a5', border: '#dc2626', dot: '#f87171' },
+            done:     { label: 'Selesai',      bg: 'rgba(52, 211, 153, 0.16)',  text: '#6ee7b7', border: '#059669', dot: '#34d399' }
+        };
+
+        // Application State
+        let appState = {
+            activeTabId: null,
+            tabs: []
+        };
+
+        let selectedNodeId = null;
+
+        // Interaction State
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let draggingNode = null;
+        let dragOffset = { x: 0, y: 0 };
+        let connectingFromNodeId = null;
+        let tempMouseWorld = { x: 0, y: 0 };
+
+        // DOM References
+        const tabsContainer = document.getElementById('tabs-container');
+        const viewport = document.getElementById('canvas-viewport');
+        const canvasGrid = document.getElementById('canvas-grid');
+        const canvasWorld = document.getElementById('canvas-world');
+        const nodesLayer = document.getElementById('nodes-layer');
+        const edgesGroup = document.getElementById('edges-group');
+        const draftEdge = document.getElementById('draft-edge');
+        const zoomLabel = document.getElementById('zoom-label');
+
+        const inspectorPanel = document.getElementById('inspector-panel');
+        const inspTitle = document.getElementById('insp-title');
+        const inspStatus = document.getElementById('insp-status');
+        const inspTimeVal = document.getElementById('insp-time-val');
+        const inspTimeUnit = document.getElementById('insp-time-unit');
+        const inspToolInput = document.getElementById('insp-tool-input');
+        const inspToolsList = document.getElementById('insp-tools-list');
+        const inspCheckInput = document.getElementById('insp-check-input');
+        const inspChecklist = document.getElementById('insp-checklist');
+        const inspNotes = document.getElementById('insp-notes');
+
+        // Helper: Generate Unique ID
+        function uid(prefix = 'id') {
+            return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+        }
+
+        // Helper: Show Toast Message
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                info: 'border-[#6b4e90] bg-[#251b32] text-[#f3e8ff]',
+                success: 'border-emerald-500/45 bg-[#1b2926] text-emerald-200',
+                warn: 'border-amber-500/45 bg-[#2b2218] text-amber-200',
+                error: 'border-red-500/45 bg-[#2d1820] text-red-200'
+            };
+            toast.className = `toast-anim px-3.5 py-2.5 rounded-xl border text-xs font-medium shadow-xl backdrop-blur ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.25s ease';
+                setTimeout(() => toast.remove(), 260);
+            }, 2800);
+        }
+
+        // Helper: Get Active Tab
+        function getActiveTab() {
+            return appState.tabs.find(t => t.id === appState.activeTabId) || appState.tabs[0];
+        }
+
+        // Helper: Create Default Sample Workflow
+        function createDefaultTab() {
+            const n1 = uid('node');
+            const n2 = uid('node');
+            const n3 = uid('node');
+
+            return {
+                id: uid('tab'),
+                name: 'Alur Produksi Utama',
+                pan: { x: 60, y: 90 },
+                zoom: 1,
+                nodes: [
+                    {
+                        id: n1,
+                        title: '1. Persiapan Bahan & Desain',
+                        x: 40,
+                        y: 60,
+                        status: 'done',
+                        timeValue: 45,
+                        timeUnit: 'Menit',
+                        tools: ['Laptop / CAD', 'Bahan Baku Utama', 'Alat Ukur'],
+                        checklist: [
+                            { id: uid('chk'), text: 'Cek spesifikasi ukuran & standar', done: true },
+                            { id: uid('chk'), text: 'Siapkan stok material di meja kerja', done: true }
+                        ],
+                        notes: 'Pastikan seluruh ukuran sudah diverifikasi sebelum masuk pemotongan.'
+                    },
+                    {
+                        id: n2,
+                        title: '2. Proses Perakitan Utama',
+                        x: 410,
+                        y: 60,
+                        status: 'progress',
+                        timeValue: 2.5,
+                        timeUnit: 'Jam',
+                        tools: ['Mesin Utama', 'Bor & Obeng Set', 'Lem Industri'],
+                        checklist: [
+                            { id: uid('chk'), text: 'Rakit rangka dasar sesuai blueprint', done: true },
+                            { id: uid('chk'), text: 'Pasang komponen inti & pengunci', done: false },
+                            { id: uid('chk'), text: 'Uji presisi sambungan', done: false }
+                        ],
+                        notes: 'Gunakan pelindung kerja dan ikuti urutan perakitan dari bagian dalam.'
+                    },
+                    {
+                        id: n3,
+                        title: '3. Quality Control & Packing',
+                        x: 780,
+                        y: 60,
+                        status: 'ready',
+                        timeValue: 30,
+                        timeUnit: 'Menit',
+                        tools: ['Checklist QC', 'Label Barcode', 'Box Kemasan'],
+                        checklist: [
+                            { id: uid('chk'), text: 'Inspeksi visual & fungsi akhir', done: false },
+                            { id: uid('chk'), text: 'Tempel segel lulus QC & kemas rapi', done: false }
+                        ],
+                        notes: 'Jika ditemukan cacat minor, kembalikan ke tahap perakitan.'
+                    }
+                ],
+                edges: [
+                    { id: uid('edge'), from: n1, to: n2 },
+                    { id: uid('edge'), from: n2, to: n3 }
+                ]
+            };
+        }
+
+        // Save & Load State from localStorage
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                console.warn('Gagal menyimpan ke localStorage:', e);
+            }
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+                        appState = parsed;
+                        if (!appState.tabs.some(t => t.id === appState.activeTabId)) {
+                            appState.activeTabId = appState.tabs[0].id;
+                        }
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Gagal memuat state:', e);
+            }
+            const firstTab = createDefaultTab();
+            appState = {
+                activeTabId: firstTab.id,
+                tabs: [firstTab]
+            };
+            saveState();
+        }
+
+        // ==========================================
+        // 1. MULTI-TAB SYSTEM (CHROME STYLE)
+        // ==========================================
+        function renderTabs() {
+            tabsContainer.innerHTML = '';
+            appState.tabs.forEach(tab => {
+                const isActive = tab.id === appState.activeTabId;
+                const tabEl = document.createElement('div');
+                tabEl.className = `chrome-tab group flex items-center gap-2 px-3 py-1.5 rounded-t-lg text-xs font-medium cursor-pointer min-w-[135px] max-w-[210px] shrink-0 ${isActive ? 'active' : ''}`;
+                tabEl.title = 'Klik untuk buka • Klik ganda untuk ubah nama tab';
+
+                // Status dot
+                const dot = document.createElement('span');
+                dot.className = `w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-[#c084fc]' : 'bg-[#5c4875]'}`;
+
+                // Tab Title
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'truncate flex-1';
+                titleSpan.textContent = tab.name;
+
+                // Double click to rename tab
+                titleSpan.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = tab.name;
+                    input.className = 'bg-[#171020] text-white text-xs px-1.5 py-0.5 rounded border border-[#b388eb] outline-none w-full';
+                    tabEl.replaceChild(input, titleSpan);
+                    input.focus();
+                    input.select();
+
+                    const commitRename = () => {
+                        const newName = input.value.trim();
+                        if (newName) tab.name = newName;
+                        saveState();
+                        renderTabs();
+                    };
+
+                    input.addEventListener('blur', commitRename);
+                    input.addEventListener('keydown', (ke) => {
+                        if (ke.key === 'Enter') commitRename();
+                        if (ke.key === 'Escape') renderTabs();
+                    });
+                });
+
+                // Close Button (×)
+                const closeBtn = document.createElement('button');
+                closeBtn.className = `p-0.5 rounded hover:bg-[#3d2e52] text-[#9f91b3] hover:text-white transition ${appState.tabs.length === 1 ? 'hidden' : 'opacity-70 group-hover:opacity-100'}`;
+                closeBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>`;
+                closeBtn.title = 'Tutup Tab';
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                });
+
+                tabEl.appendChild(dot);
+                tabEl.appendChild(titleSpan);
+                tabEl.appendChild(closeBtn);
+
+                tabEl.addEventListener('click', () => {
+                    if (appState.activeTabId !== tab.id) {
+                        appState.activeTabId = tab.id;
+                        selectedNodeId = null;
+                        closeInspector();
+                        saveState();
+                        renderAll();
+                    }
+                });
+
+                tabsContainer.appendChild(tabEl);
+            });
+        }
+
+        function createNewTab(customTabData = null) {
+            const count = appState.tabs.length + 1;
+            const newTab = customTabData || {
+                id: uid('tab'),
+                name: `Alur Kerja #${count}`,
+                pan: { x: 80, y: 100 },
+                zoom: 1,
+                nodes: [
+                    {
+                        id: uid('node'),
+                        title: 'Kategori Awal',
+                        x: 80,
+                        y: 80,
+                        status: 'draft',
+                        timeValue: 30,
+                        timeUnit: 'Menit',
+                        tools: ['Alat Dasar'],
+                        checklist: [
+                            { id: uid('chk'), text: 'Langkah pertama', done: false }
+                        ],
+                        notes: ''
+                    }
+                ],
+                edges: []
+            };
+            appState.tabs.push(newTab);
+            appState.activeTabId = newTab.id;
+            selectedNodeId = null;
+            closeInspector();
+            saveState();
+            renderAll();
+        }
+
+        function duplicateActiveTab() {
+            const current = getActiveTab();
+            if (!current) return;
+            const clone = JSON.parse(JSON.stringify(current));
+            clone.id = uid('tab');
+            clone.name = `${current.name} (Salinan)`;
+            appState.tabs.push(clone);
+            appState.activeTabId = clone.id;
+            selectedNodeId = null;
+            closeInspector();
+            saveState();
+            renderAll();
+            showToast(`Tab "${clone.name}" berhasil diduplikat!`, 'success');
+        }
+
+        function closeTab(tabId) {
+            if (appState.tabs.length <= 1) return;
+            const idx = appState.tabs.findIndex(t => t.id === tabId);
+            appState.tabs = appState.tabs.filter(t => t.id !== tabId);
+            if (appState.activeTabId === tabId) {
+                const nextIdx = Math.max(0, idx - 1);
+                appState.activeTabId = appState.tabs[nextIdx].id;
+                selectedNodeId = null;
+                closeInspector();
+            }
+            saveState();
+            renderAll();
+        }
+
+        // ==========================================
+        // 2. CANVAS TRANSFORM, PAN & ZOOM
+        // ==========================================
+        function updateCanvasTransform() {
+            const tab = getActiveTab();
+            if (!tab) return;
+            canvasWorld.style.transform = `translate(${tab.pan.x}px, ${tab.pan.y}px) scale(${tab.zoom})`;
+            const gridSize = 24 * tab.zoom;
+            canvasGrid.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+            canvasGrid.style.backgroundPosition = `${tab.pan.x}px ${tab.pan.y}px`;
+            zoomLabel.textContent = `${Math.round(tab.zoom * 100)}%`;
+        }
+
+        function screenToWorld(clientX, clientY) {
+            const tab = getActiveTab();
+            const rect = viewport.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left - tab.pan.x) / tab.zoom,
+                y: (clientY - rect.top - tab.pan.y) / tab.zoom
+            };
+        }
+
+        function fitView() {
+            const tab = getActiveTab();
+            if (!tab || tab.nodes.length === 0) {
+                tab.pan = { x: 80, y: 100 };
+                tab.zoom = 1;
+                updateCanvasTransform();
+                saveState();
+                return;
+            }
+
+            const rect = viewport.getBoundingClientRect();
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+            tab.nodes.forEach(node => {
+                const el = document.getElementById(node.id);
+                const w = el ? el.offsetWidth : 290;
+                const h = el ? el.offsetHeight : 180;
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + w);
+                maxY = Math.max(maxY, node.y + h);
+            });
+
+            const contentW = maxX - minX;
+            const contentH = maxY - minY;
+            const padding = 80;
+
+            const scaleX = (rect.width - padding * 2) / contentW;
+            const scaleY = (rect.height - padding * 2) / contentH;
+            const newZoom = Math.min(1.15, Math.max(0.35, Math.min(scaleX, scaleY)));
+
+            tab.zoom = newZoom;
+            tab.pan.x = (rect.width - contentW * newZoom) / 2 - minX * newZoom;
+            tab.pan.y = (rect.height - contentH * newZoom) / 2 - minY * newZoom;
+
+            updateCanvasTransform();
+            saveState();
+        }
+
+        // ==========================================
+        // 3. RENDER NODES, EDGES & SUMMARY STATS
+        // ==========================================
+        function formatTotalDuration(nodes) {
+            let totalMinutes = 0;
+            nodes.forEach(n => {
+                const val = parseFloat(n.timeValue) || 0;
+                if (n.timeUnit === 'Menit') totalMinutes += val;
+                else if (n.timeUnit === 'Jam') totalMinutes += val * 60;
+                else if (n.timeUnit === 'Hari') totalMinutes += val * 60 * 8; // 8 jam kerja per hari
+            });
+
+            if (totalMinutes === 0) return '0 Menit';
+            if (totalMinutes < 60) return `${Math.round(totalMinutes * 10) / 10} Menit`;
+            const hours = totalMinutes / 60;
+            if (hours < 24) {
+                const h = Math.floor(hours);
+                const m = Math.round((hours - h) * 60);
+                return m > 0 ? `${h} Jam ${m} Mnt` : `${h} Jam`;
+            }
+            const days = (hours / 8).toFixed(1).replace(/\.0$/, '');
+            return `${days} Hari (${Math.round(hours)} Jam)`;
+        }
+
+        function updateSummaryStats() {
+            const tab = getActiveTab();
+            if (!tab) return;
+
+            document.getElementById('stat-nodes').textContent = tab.nodes.length;
+            document.getElementById('stat-time').textContent = formatTotalDuration(tab.nodes);
+
+            const uniqueTools = new Set();
+            tab.nodes.forEach(n => (n.tools || []).forEach(t => uniqueTools.add(t.trim())));
+            document.getElementById('stat-tools').textContent = `${uniqueTools.size} Item`;
+        }
+
+        function renderNodes() {
+            const tab = getActiveTab();
+            if (!tab) return;
+            nodesLayer.innerHTML = '';
+
+            tab.nodes.forEach(node => {
+                const st = STATUS_META[node.status] || STATUS_META.draft;
+                const isSelected = node.id === selectedNodeId;
+
+                const card = document.createElement('div');
+                card.id = node.id;
+                card.className = `wf-node ${isSelected ? 'selected' : ''}`;
+                card.style.left = `${node.x}px`;
+                card.style.top = `${node.y}px`;
+
+                // Checklist stats
+                const checks = node.checklist || [];
+                const doneCount = checks.filter(c => c.done).length;
+
+                // Tools HTML
+                const toolsHtml = (node.tools && node.tools.length > 0)
+                    ? `<div class="flex flex-wrap gap-1 mt-2.5">
+                        ${node.tools.slice(0, 4).map(t => `
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 truncate max-w-[125px]">
+                                🔧 ${escapeHtml(t)}
+                            </span>
+                        `).join('')}
+                        ${node.tools.length > 4 ? `<span class="px-1.5 py-0.5 rounded text-[10px] text-slate-400 bg-slate-800">+${node.tools.length - 4}</span>` : ''}
+                       </div>`
+                    : '';
+
+                // Checklist Preview HTML (Interactive checkboxes directly on canvas!)
+                const checklistHtml = checks.length > 0
+                    ? `<div class="mt-2.5 pt-2 border-t border-[#362847] space-y-1">
+                        <div class="flex items-center justify-between text-[10px] text-[#9f91b3] mb-1">
+                            <span>Langkah Kerja</span>
+                            <span class="font-mono-code text-[#c084fc]">${doneCount}/${checks.length}</span>
+                        </div>
+                        ${checks.slice(0, 4).map(chk => `
+                            <label class="flex items-start gap-1.5 text-[11px] cursor-pointer group/chk" data-chk-id="${chk.id}">
+                                <input type="checkbox" ${chk.done ? 'checked' : ''} class="mt-0.5 rounded border-[#5b457a] bg-[#181122] text-[#a855f7] focus:ring-0 cursor-pointer">
+                                <span class="${chk.done ? 'line-through text-[#6d5c85]' : 'text-[#e9d8fd] group-hover/chk:text-white'} leading-tight break-words">${escapeHtml(chk.text)}</span>
+                            </label>
+                        `).join('')}
+                        ${checks.length > 4 ? `<div class="text-[10px] text-[#9f91b3] italic pl-4">+ ${checks.length - 4} langkah lainnya...</div>` : ''}
+                       </div>`
+                    : '';
+
+                // Notes Preview
+                const notesHtml = (node.notes && node.notes.trim().length > 0)
+                    ? `<div class="mt-2.5 px-2.5 py-1.5 rounded-lg bg-[#1b1326] border border-[#362847] text-[10.5px] text-[#b8a9cc] line-clamp-2 italic">
+                        "${escapeHtml(node.notes.trim())}"
+                       </div>`
+                    : '';
+
+                card.innerHTML = `
+                    <!-- Input & Output Connection Ports -->
+                    <div class="node-port port-in" data-port="in" data-node-id="${node.id}" title="Hubungkan Panah Masuk ke Sini"></div>
+                    <div class="node-port port-out" data-port="out" data-node-id="${node.id}" title="Tarik Garis Alur ke Kategori Berikutnya"></div>
+
+                    <!-- Card Header -->
+                    <div class="p-3">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                  style="background:${st.bg}; color:${st.text}; border:1px solid ${st.border}40;">
+                                <span class="w-1.5 h-1.5 rounded-full" style="background:${st.dot}"></span>
+                                ${st.label}
+                            </span>
+
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10.5px] font-mono-code font-medium">
+                                ⏱ ${node.timeValue || 0} ${node.timeUnit || 'Menit'}
+                            </span>
+                        </div>
+
+                        <h3 class="text-sm font-bold text-white leading-snug break-words">${escapeHtml(node.title || 'Tanpa Judul')}</h3>
+
+                        ${toolsHtml}
+                        ${checklistHtml}
+                        ${notesHtml}
+                    </div>
+                `;
+
+                // Interactive Checkbox Toggle inside Canvas Card
+                card.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.addEventListener('mousedown', e => e.stopPropagation());
+                    cb.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const chkId = cb.closest('label').dataset.chkId;
+                        const targetChk = node.checklist.find(c => c.id === chkId);
+                        if (targetChk) {
+                            targetChk.done = cb.checked;
+                            saveState();
+                            renderNodes();
+                            if (selectedNodeId === node.id) populateInspector(node);
+                        }
+                    });
+                });
+
+                // Output Port Drag to Connect
+                const outPort = card.querySelector('.port-out');
+                outPort.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    connectingFromNodeId = node.id;
+                    const worldPt = screenToWorld(e.clientX, e.clientY);
+                    tempMouseWorld = worldPt;
+                    draftEdge.classList.remove('hidden');
+                    updateDraftEdge();
+                });
+
+                // Input Port Drop to Connect
+                const inPort = card.querySelector('.port-in');
+                inPort.addEventListener('mouseup', (e) => {
+                    e.stopPropagation();
+                    if (connectingFromNodeId && connectingFromNodeId !== node.id) {
+                        addEdge(connectingFromNodeId, node.id);
+                    }
+                    endConnecting();
+                });
+
+                // Node Dragging & Selection
+                card.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('.node-port') || e.target.tagName === 'INPUT') return;
+                    e.stopPropagation();
+
+                    selectNode(node.id);
+                    draggingNode = node;
+                    card.classList.add('dragging');
+                    const worldPt = screenToWorld(e.clientX, e.clientY);
+                    dragOffset.x = worldPt.x - node.x;
+                    dragOffset.y = worldPt.y - node.y;
+                });
+
+                nodesLayer.appendChild(card);
+            });
+
+            renderEdges();
+            updateSummaryStats();
+        }
+
+        function getNodePortsCoords(node) {
+            const el = document.getElementById(node.id);
+            const w = el ? el.offsetWidth : 290;
+            const h = el ? el.offsetHeight : 140;
+            return {
+                inX: node.x,
+                inY: node.y + h / 2,
+                outX: node.x + w,
+                outY: node.y + h / 2
+            };
+        }
+
+        function computeBezierPath(x1, y1, x2, y2) {
+            const dx = Math.abs(x2 - x1);
+            const ctrlOffset = Math.max(60, dx * 0.45);
+            return `M ${x1} ${y1} C ${x1 + ctrlOffset} ${y1}, ${x2 - ctrlOffset} ${y2}, ${x2} ${y2}`;
+        }
+
+        function renderEdges() {
+            const tab = getActiveTab();
+            if (!tab) return;
+            edgesGroup.innerHTML = '';
+
+            tab.edges.forEach(edge => {
+                const fromNode = tab.nodes.find(n => n.id === edge.from);
+                const toNode = tab.nodes.find(n => n.id === edge.to);
+                if (!fromNode || !toNode) return;
+
+                const p1 = getNodePortsCoords(fromNode);
+                const p2 = getNodePortsCoords(toNode);
+                const d = computeBezierPath(p1.outX, p1.outY, p2.inX, p2.inY);
+
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('class', 'edge-group');
+
+                const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hitPath.setAttribute('d', d);
+                hitPath.setAttribute('class', 'edge-hitarea');
+
+                const visPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                visPath.setAttribute('d', d);
+                visPath.setAttribute('class', 'edge-path');
+                visPath.setAttribute('marker-end', 'url(#arrowhead)');
+
+                g.addEventListener('mouseenter', () => visPath.setAttribute('marker-end', 'url(#arrowhead-hover)'));
+                g.addEventListener('mouseleave', () => visPath.setAttribute('marker-end', 'url(#arrowhead)'));
+                g.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    tab.edges = tab.edges.filter(ed => ed.id !== edge.id);
+                    saveState();
+                    renderEdges();
+                    showToast('Garis alur dihapus', 'info');
+                });
+
+                g.appendChild(hitPath);
+                g.appendChild(visPath);
+                edgesGroup.appendChild(g);
+            });
+        }
+
+        function updateDraftEdge() {
+            if (!connectingFromNodeId) return;
+            const tab = getActiveTab();
+            const fromNode = tab.nodes.find(n => n.id === connectingFromNodeId);
+            if (!fromNode) return;
+            const p1 = getNodePortsCoords(fromNode);
+            const d = computeBezierPath(p1.outX, p1.outY, tempMouseWorld.x, tempMouseWorld.y);
+            draftEdge.setAttribute('d', d);
+        }
+
+        function endConnecting() {
+            connectingFromNodeId = null;
+            draftEdge.classList.add('hidden');
+        }
+
+        function addEdge(fromId, toId) {
+            const tab = getActiveTab();
+            const exists = tab.edges.some(e => e.from === fromId && e.to === toId);
+            if (exists) {
+                showToast('Alur panah tersebut sudah terhubung', 'warn');
+                return;
+            }
+            tab.edges.push({ id: uid('edge'), from: fromId, to: toId });
+            saveState();
+            renderEdges();
+            showToast('Alur berhasil dihubungkan!', 'success');
+        }
+
+        // ==========================================
+        // 4. INSPECTOR PANEL LOGIC
+        // ==========================================
+        function selectNode(nodeId) {
+            selectedNodeId = nodeId;
+            document.querySelectorAll('.wf-node').forEach(el => {
+                el.classList.toggle('selected', el.id === nodeId);
+            });
+            const tab = getActiveTab();
+            const node = tab.nodes.find(n => n.id === nodeId);
+            if (node) {
+                inspectorPanel.classList.remove('hidden');
+                populateInspector(node);
+            }
+        }
+
+        function closeInspector() {
+            selectedNodeId = null;
+            inspectorPanel.classList.add('hidden');
+            document.querySelectorAll('.wf-node').forEach(el => el.classList.remove('selected'));
+        }
+
+        function populateInspector(node) {
+            inspTitle.value = node.title || '';
+            inspStatus.value = node.status || 'draft';
+            inspTimeVal.value = node.timeValue ?? 0;
+            inspTimeUnit.value = node.timeUnit || 'Menit';
+            inspNotes.value = node.notes || '';
+
+            // Render Tools in Inspector
+            inspToolsList.innerHTML = '';
+            (node.tools || []).forEach((tool, idx) => {
+                const badge = document.createElement('span');
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs';
+                badge.innerHTML = `
+                    <span>${escapeHtml(tool)}</span>
+                    <button type="button" class="text-emerald-400 hover:text-white font-bold">&times;</button>
+                `;
+                badge.querySelector('button').addEventListener('click', () => {
+                    node.tools.splice(idx, 1);
+                    saveState();
+                    populateInspector(node);
+                    renderNodes();
+                });
+                inspToolsList.appendChild(badge);
+            });
+
+            // Render Checklist in Inspector
+            inspChecklist.innerHTML = '';
+            (node.checklist || []).forEach((chk, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2 p-2 rounded-lg bg-[#181122] border border-[#362847]';
+                row.innerHTML = `
+                    <input type="checkbox" ${chk.done ? 'checked' : ''} class="rounded border-[#5b457a] bg-[#251b32] text-[#a855f7] focus:ring-0 cursor-pointer">
+                    <input type="text" value="${escapeHtml(chk.text)}" class="flex-1 bg-transparent text-xs text-[#f3e8ff] focus:outline-none ${chk.done ? 'line-through text-[#6d5c85]' : ''}">
+                    <button type="button" class="text-[#9f91b3] hover:text-red-400 px-1">&times;</button>
+                `;
+                const cb = row.querySelector('input[type="checkbox"]');
+                const txt = row.querySelector('input[type="text"]');
+                const del = row.querySelector('button');
+
+                cb.addEventListener('change', () => {
+                    chk.done = cb.checked;
+                    saveState();
+                    populateInspector(node);
+                    renderNodes();
+                });
+
+                txt.addEventListener('input', () => {
+                    chk.text = txt.value;
+                    saveState();
+                    renderNodes();
+                });
+
+                del.addEventListener('click', () => {
+                    node.checklist.splice(idx, 1);
+                    saveState();
+                    populateInspector(node);
+                    renderNodes();
+                });
+
+                inspChecklist.appendChild(row);
+            });
+        }
+
+        // Bind Inspector Live Inputs
+        inspTitle.addEventListener('input', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            node.title = inspTitle.value;
+            saveState();
+            renderNodes();
+        });
+
+        inspStatus.addEventListener('change', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            node.status = inspStatus.value;
+            saveState();
+            renderNodes();
+        });
+
+        inspTimeVal.addEventListener('input', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            node.timeValue = parseFloat(inspTimeVal.value) || 0;
+            saveState();
+            renderNodes();
+        });
+
+        inspTimeUnit.addEventListener('change', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            node.timeUnit = inspTimeUnit.value;
+            saveState();
+            renderNodes();
+        });
+
+        inspNotes.addEventListener('input', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            node.notes = inspNotes.value;
+            saveState();
+            renderNodes();
+        });
+
+        function addToolToSelected() {
+            const node = getSelectedNode();
+            const val = inspToolInput.value.trim();
+            if (!node || !val) return;
+            if (!node.tools) node.tools = [];
+            node.tools.push(val);
+            inspToolInput.value = '';
+            saveState();
+            populateInspector(node);
+            renderNodes();
+        }
+
+        document.getElementById('btn-add-tool').addEventListener('click', addToolToSelected);
+        inspToolInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addToolToSelected(); });
+
+        function addCheckToSelected() {
+            const node = getSelectedNode();
+            const val = inspCheckInput.value.trim();
+            if (!node || !val) return;
+            if (!node.checklist) node.checklist = [];
+            node.checklist.push({ id: uid('chk'), text: val, done: false });
+            inspCheckInput.value = '';
+            saveState();
+            populateInspector(node);
+            renderNodes();
+        }
+
+        document.getElementById('btn-add-check').addEventListener('click', addCheckToSelected);
+        inspCheckInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCheckToSelected(); });
+
+        function getSelectedNode() {
+            if (!selectedNodeId) return null;
+            return getActiveTab().nodes.find(n => n.id === selectedNodeId);
+        }
+
+        // Duplicate & Delete Node
+        document.getElementById('btn-dup-node').addEventListener('click', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            const tab = getActiveTab();
+            const copy = JSON.parse(JSON.stringify(node));
+            copy.id = uid('node');
+            copy.title = `${node.title} (Copy)`;
+            copy.x += 40;
+            copy.y += 50;
+            tab.nodes.push(copy);
+            saveState();
+            renderNodes();
+            selectNode(copy.id);
+            showToast('Kategori berhasil diduplikat', 'success');
+        });
+
+        document.getElementById('btn-del-node').addEventListener('click', () => {
+            const node = getSelectedNode();
+            if (!node) return;
+            const tab = getActiveTab();
+            tab.nodes = tab.nodes.filter(n => n.id !== node.id);
+            tab.edges = tab.edges.filter(e => e.from !== node.id && e.to !== node.id);
+            closeInspector();
+            saveState();
+            renderNodes();
+            showToast('Kategori dihapus', 'info');
+        });
+
+        document.getElementById('btn-close-inspector').addEventListener('click', closeInspector);
+
+        // Add New Category Node
+        function createNewNode(worldX = null, worldY = null) {
+            const tab = getActiveTab();
+            const rect = viewport.getBoundingClientRect();
+            const centerWorld = screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+
+            const x = worldX !== null ? worldX : Math.round(centerWorld.x - 145 + (Math.random() * 40 - 20));
+            const y = worldY !== null ? worldY : Math.round(centerWorld.y - 80 + (Math.random() * 40 - 20));
+
+            const newNode = {
+                id: uid('node'),
+                title: `Tahap ${tab.nodes.length + 1}: Kategori Baru`,
+                x,
+                y,
+                status: 'draft',
+                timeValue: 30,
+                timeUnit: 'Menit',
+                tools: [],
+                checklist: [],
+                notes: ''
+            };
+
+            tab.nodes.push(newNode);
+            saveState();
+            renderNodes();
+            selectNode(newNode.id);
+            setTimeout(() => {
+                inspTitle.focus();
+                inspTitle.select();
+            }, 50);
+        }
+
+        document.getElementById('btn-add-node').addEventListener('click', () => createNewNode());
+
+        // ==========================================
+        // 5. HIGH-RES AUTO-CROP PNG EXPORT (3X HD)
+        // ==========================================
+        function exportDiagramToHighResPNG() {
+            const tab = getActiveTab();
+            if (!tab || tab.nodes.length === 0) {
+                showToast('Kanvas masih kosong, tambahkan minimal 1 kategori dulu!', 'warn');
+                return;
+            }
+
+            showToast('Merender gambar PNG HD (Anti-Blur)...', 'info');
+
+            // 1. Calculate Exact Bounding Box of all nodes
+            const nodeRects = tab.nodes.map(node => {
+                const el = document.getElementById(node.id);
+                const w = el ? el.offsetWidth : 290;
+                const h = el ? el.offsetHeight : 150;
+                return { node, x: node.x, y: node.y, w, h };
+            });
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            nodeRects.forEach(r => {
+                minX = Math.min(minX, r.x);
+                minY = Math.min(minY, r.y);
+                maxX = Math.max(maxX, r.x + r.w);
+                maxY = Math.max(maxY, r.y + r.h);
+            });
+
+            // Add clean margin around diagram
+            const padding = 56;
+            const exportWidth = (maxX - minX) + padding * 2;
+            const exportHeight = (maxY - minY) + padding * 2;
+
+            // 3x Retina Scale so zooming in never blurs!
+            const scale = 3;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(exportWidth * scale);
+            canvas.height = Math.ceil(exportHeight * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.scale(scale, scale);
+
+            // Offset translation so bounding box starts at (padding, padding)
+            const offsetX = padding - minX;
+            const offsetY = padding - minY;
+
+            // 2. Background Fill (Matching Dark Plum Theme #171020)
+            ctx.fillStyle = '#171020';
+            ctx.fillRect(0, 0, exportWidth, exportHeight);
+
+            // Subtle purple-tinted dot grid inside exported PNG
+            ctx.fillStyle = '#342747';
+            for (let gx = 16; gx < exportWidth; gx += 24) {
+                for (let gy = 16; gy < exportHeight; gy += 24) {
+                    ctx.beginPath();
+                    ctx.arc(gx, gy, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 3. Draw Bezier Connection Edges + Arrowheads
+            tab.edges.forEach(edge => {
+                const fromR = nodeRects.find(r => r.node.id === edge.from);
+                const toR = nodeRects.find(r => r.node.id === edge.to);
+                if (!fromR || !toR) return;
+
+                const x1 = fromR.x + fromR.w + offsetX;
+                const y1 = fromR.y + fromR.h / 2 + offsetY;
+                const x2 = toR.x + offsetX;
+                const y2 = toR.y + toR.h / 2 + offsetY;
+
+                const dx = Math.abs(x2 - x1);
+                const ctrlOffset = Math.max(60, dx * 0.45);
+                const cp1x = x1 + ctrlOffset;
+                const cp1y = y1;
+                const cp2x = x2 - ctrlOffset;
+                const cp2y = y2;
+
+                // Curve line
+                ctx.save();
+                ctx.strokeStyle = '#7e679e';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x2 - 6, y2);
+                ctx.stroke();
+
+                // Arrowhead triangle at (x2, y2)
+                const angle = Math.atan2(y2 - cp2y, x2 - cp2x);
+                const arrowLen = 11;
+                ctx.fillStyle = '#7e679e';
+                ctx.beginPath();
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(x2 - arrowLen * Math.cos(angle - Math.PI / 6), y2 - arrowLen * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(x2 - arrowLen * Math.cos(angle + Math.PI / 6), y2 - arrowLen * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 4. Draw Each Category Card Crisp & Sharp
+            nodeRects.forEach(({ node, x, y, w, h }) => {
+                const nx = x + offsetX;
+                const ny = y + offsetY;
+                const st = STATUS_META[node.status] || STATUS_META.draft;
+
+                // Card Shadow & Body (Dark Plum #251b32)
+                ctx.save();
+                ctx.shadowColor = 'rgba(10, 5, 18, 0.6)';
+                ctx.shadowBlur = 16;
+                ctx.shadowOffsetY = 6;
+                roundRect(ctx, nx, ny, w, h, 12);
+                ctx.fillStyle = '#251b32';
+                ctx.fill();
+                ctx.restore();
+
+                // Card Border
+                roundRect(ctx, nx, ny, w, h, 12);
+                ctx.strokeStyle = '#3d2e52';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Connection Port Dots
+                ctx.fillStyle = '#2e223d';
+                ctx.strokeStyle = '#7e679e';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(nx, ny + h / 2, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(nx + w, ny + h / 2, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+                let cursorY = ny + 14;
+                const padX = nx + 14;
+                const innerW = w - 28;
+
+                // Status Pill
+                ctx.font = '600 10px Inter, sans-serif';
+                const statusText = st.label;
+                const statusW = ctx.measureText(statusText).width + 20;
+                roundRect(ctx, padX, cursorY, statusW, 18, 9);
+                ctx.fillStyle = st.bg;
+                ctx.fill();
+                ctx.fillStyle = st.dot;
+                ctx.beginPath(); ctx.arc(padX + 8, cursorY + 9, 2.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = st.text;
+                ctx.fillText(statusText, padX + 14, cursorY + 12.5);
+
+                // Time Pill (Right aligned)
+                const timeText = `⏱ ${node.timeValue || 0} ${node.timeUnit || 'Menit'}`;
+                ctx.font = '500 10.5px "JetBrains Mono", monospace';
+                const timeW = ctx.measureText(timeText).width + 14;
+                roundRect(ctx, nx + w - 14 - timeW, cursorY, timeW, 18, 6);
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+                ctx.fill();
+                ctx.fillStyle = '#fcd34d';
+                ctx.fillText(timeText, nx + w - 14 - timeW + 7, cursorY + 12.5);
+
+                cursorY += 28;
+
+                // Title (Word-wrapped)
+                ctx.font = '700 14px Inter, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                cursorY = drawWrappedText(ctx, node.title || 'Tanpa Judul', padX, cursorY + 11, innerW, 18);
+
+                // Tools Tags
+                if (node.tools && node.tools.length > 0) {
+                    cursorY += 6;
+                    let tagX = padX;
+                    ctx.font = '500 10px Inter, sans-serif';
+                    node.tools.slice(0, 4).forEach(tool => {
+                        const label = `🔧 ${tool}`;
+                        const tw = Math.min(innerW, ctx.measureText(label).width + 14);
+                        if (tagX + tw > padX + innerW) {
+                            tagX = padX;
+                            cursorY += 21;
+                        }
+                        roundRect(ctx, tagX, cursorY, tw, 17, 5);
+                        ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+                        ctx.fill();
+                        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                        ctx.fillStyle = '#6ee7b7';
+                        ctx.fillText(label, tagX + 6, cursorY + 12);
+                        tagX += tw + 5;
+                    });
+                    cursorY += 22;
+                }
+
+                // Checklist Items
+                if (node.checklist && node.checklist.length > 0) {
+                    cursorY += 6;
+                    ctx.strokeStyle = '#362847';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(padX, cursorY); ctx.lineTo(padX + innerW, cursorY); ctx.stroke();
+                    cursorY += 13;
+
+                    const doneCount = node.checklist.filter(c => c.done).length;
+                    ctx.font = '500 10px Inter, sans-serif';
+                    ctx.fillStyle = '#9f91b3';
+                    ctx.fillText(`Langkah Kerja (${doneCount}/${node.checklist.length})`, padX, cursorY);
+                    cursorY += 14;
+
+                    ctx.font = '400 11px Inter, sans-serif';
+                    node.checklist.slice(0, 4).forEach(chk => {
+                        const box = chk.done ? '☑' : '☐';
+                        ctx.fillStyle = chk.done ? '#34d399' : '#7e679e';
+                        ctx.fillText(box, padX, cursorY);
+                        ctx.fillStyle = chk.done ? '#6d5c85' : '#e9d8fd';
+                        cursorY = drawWrappedText(ctx, chk.text, padX + 15, cursorY, innerW - 15, 14);
+                        cursorY += 3;
+                    });
+                }
+
+                // Notes Preview
+                if (node.notes && node.notes.trim().length > 0) {
+                    cursorY += 4;
+                    ctx.font = 'italic 10.5px Inter, sans-serif';
+                    ctx.fillStyle = '#b8a9cc';
+                    drawWrappedText(ctx, `"${node.notes.trim()}"`, padX, cursorY + 8, innerW, 14, 2);
+                }
+            });
+
+            // 5. Trigger PNG File Download
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const safeName = (tab.name || 'workflow').replace(/[^a-z0-9_\-]/gi, '_').toLowerCase();
+                a.href = url;
+                a.download = `${safeName}_HD.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast(`PNG HD berhasil diunduh (${canvas.width}×${canvas.height}px)!`, 'success');
+            }, 'image/png');
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+
+        function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 10) {
+            const words = text.split(' ');
+            let line = '';
+            let linesDrawn = 0;
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) {
+                    linesDrawn++;
+                    if (linesDrawn >= maxLines) {
+                        ctx.fillText(line.trim() + '...', x, y);
+                        return y + lineHeight;
+                    }
+                    ctx.fillText(line.trim(), x, y);
+                    line = words[n] + ' ';
+                    y += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            ctx.fillText(line.trim(), x, y);
+            return y + lineHeight;
+        }
+
+        document.getElementById('btn-export-png').addEventListener('click', exportDiagramToHighResPNG);
+
+        // ==========================================
+        // 6. JSON EXPORT & IMPORT (AUTO NEW TAB)
+        // ==========================================
+        document.getElementById('btn-export-json').addEventListener('click', () => {
+            const tab = getActiveTab();
+            if (!tab) return;
+            const payload = {
+                app: 'FlowCraft Studio',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                workflow: tab
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const safeName = (tab.name || 'workflow').replace(/[^a-z0-9_\-]/gi, '_').toLowerCase();
+            a.href = url;
+            a.download = `${safeName}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`File "${safeName}.json" berhasil diekspor!`, 'success');
+        });
+
+        const inputImportJson = document.getElementById('input-import-json');
+        document.getElementById('btn-import-json').addEventListener('click', () => {
+            inputImportJson.value = '';
+            inputImportJson.click();
+        });
+
+        inputImportJson.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    const wfData = parsed.workflow ? parsed.workflow : parsed;
+
+                    if (!wfData || !Array.isArray(wfData.nodes)) {
+                        throw new Error('Format JSON tidak valid');
+                    }
+
+                    // Remap IDs cleanly and open in a brand new tab
+                    const idMap = {};
+                    const newNodes = wfData.nodes.map(n => {
+                        const newId = uid('node');
+                        idMap[n.id] = newId;
+                        return {
+                            ...n,
+                            id: newId,
+                            tools: Array.isArray(n.tools) ? n.tools : [],
+                            checklist: Array.isArray(n.checklist) ? n.checklist : []
+                        };
+                    });
+
+                    const newEdges = (Array.isArray(wfData.edges) ? wfData.edges : [])
+                        .filter(ed => idMap[ed.from] && idMap[ed.to])
+                        .map(ed => ({
+                            id: uid('edge'),
+                            from: idMap[ed.from],
+                            to: idMap[ed.to]
+                        }));
+
+                    const importedTab = {
+                        id: uid('tab'),
+                        name: wfData.name || file.name.replace(/\.json$/i, ''),
+                        pan: wfData.pan || { x: 60, y: 90 },
+                        zoom: wfData.zoom || 1,
+                        nodes: newNodes,
+                        edges: newEdges
+                    };
+
+                    createNewTab(importedTab);
+                    setTimeout(fitView, 60);
+                    showToast(`Berhasil mengimpor "${importedTab.name}" ke tab baru!`, 'success');
+                } catch (err) {
+                    showToast('Gagal membaca file JSON. Pastikan file berasal dari FlowCraft.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // ==========================================
+        // 7. TOOLS SUMMARY MODAL
+        // ==========================================
+        const modalTools = document.getElementById('modal-tools');
+        document.getElementById('btn-view-tools').addEventListener('click', () => {
+            const tab = getActiveTab();
+            const body = document.getElementById('modal-tools-body');
+            body.innerHTML = '';
+
+            const toolMap = new Map();
+            tab.nodes.forEach(n => {
+                (n.tools || []).forEach(t => {
+                    const key = t.trim();
+                    if (!toolMap.has(key)) toolMap.set(key, []);
+                    toolMap.get(key).push(n.title || 'Kategori');
+                });
+            });
+
+            if (toolMap.size === 0) {
+                body.innerHTML = `<p class="text-[#9f91b3] text-center py-6">Belum ada alat atau bahan yang ditambahkan di tab ini.</p>`;
+            } else {
+                toolMap.forEach((stages, toolName) => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 rounded-xl bg-[#181122] border border-[#362847] flex items-start justify-between gap-3';
+                    item.innerHTML = `
+                        <div>
+                            <div class="font-semibold text-emerald-300">🔧 ${escapeHtml(toolName)}</div>
+                            <div class="text-[11px] text-[#9f91b3] mt-0.5">Dipakai di: ${stages.map(s => escapeHtml(s)).join(', ')}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded bg-[#2e223d] text-[#e9d8fd] font-mono-code text-[10px]">${stages.length}x</span>
+                    `;
+                    body.appendChild(item);
+                });
+            }
+
+            modalTools.classList.remove('hidden');
+            modalTools.classList.add('flex');
+        });
+
+        ['btn-close-tools-modal', 'btn-ok-tools-modal'].forEach(id => {
+            document.getElementById(id).addEventListener('click', () => {
+                modalTools.classList.add('hidden');
+                modalTools.classList.remove('flex');
+            });
+        });
+
+        // ==========================================
+        // 8. MOUSE & TOUCH CANVAS INTERACTIONS
+        // ==========================================
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.target === viewport || e.target === canvasWorld || e.target.id === 'connections-layer') {
+                closeInspector();
+                isPanning = true;
+                viewport.classList.add('panning');
+                const tab = getActiveTab();
+                panStart.x = e.clientX - tab.pan.x;
+                panStart.y = e.clientY - tab.pan.y;
+            }
+        });
+
+        viewport.addEventListener('dblclick', (e) => {
+            if (e.target === viewport || e.target === canvasWorld || e.target.id === 'connections-layer') {
+                const pt = screenToWorld(e.clientX, e.clientY);
+                createNewNode(Math.round(pt.x - 145), Math.round(pt.y - 60));
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const tab = getActiveTab();
+            if (!tab) return;
+
+            if (isPanning) {
+                tab.pan.x = e.clientX - panStart.x;
+                tab.pan.y = e.clientY - panStart.y;
+                updateCanvasTransform();
+            } else if (draggingNode) {
+                const pt = screenToWorld(e.clientX, e.clientY);
+                draggingNode.x = Math.round(pt.x - dragOffset.x);
+                draggingNode.y = Math.round(pt.y - dragOffset.y);
+                const el = document.getElementById(draggingNode.id);
+                if (el) {
+                    el.style.left = `${draggingNode.x}px`;
+                    el.style.top = `${draggingNode.y}px`;
+                }
+                renderEdges();
+            } else if (connectingFromNodeId) {
+                tempMouseWorld = screenToWorld(e.clientX, e.clientY);
+                updateDraftEdge();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isPanning) {
+                isPanning = false;
+                viewport.classList.remove('panning');
+                saveState();
+            }
+            if (draggingNode) {
+                const el = document.getElementById(draggingNode.id);
+                if (el) el.classList.remove('dragging');
+                draggingNode = null;
+                saveState();
+            }
+            if (connectingFromNodeId) {
+                endConnecting();
+            }
+        });
+
+        // Mouse Wheel Zoom towards cursor
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const tab = getActiveTab();
+            const rect = viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+            const newZoom = Math.min(2.0, Math.max(0.3, tab.zoom * zoomFactor));
+
+            tab.pan.x = mouseX - (mouseX - tab.pan.x) * (newZoom / tab.zoom);
+            tab.pan.y = mouseY - (mouseY - tab.pan.y) * (newZoom / tab.zoom);
+            tab.zoom = newZoom;
+
+            updateCanvasTransform();
+            saveState();
+        }, { passive: false });
+
+        // Zoom Toolbar Buttons
+        document.getElementById('btn-zoom-in').addEventListener('click', () => {
+            const tab = getActiveTab();
+            tab.zoom = Math.min(2.0, tab.zoom + 0.15);
+            updateCanvasTransform();
+            saveState();
+        });
+
+        document.getElementById('btn-zoom-out').addEventListener('click', () => {
+            const tab = getActiveTab();
+            tab.zoom = Math.max(0.3, tab.zoom - 0.15);
+            updateCanvasTransform();
+            saveState();
+        });
+
+        document.getElementById('btn-fit-view').addEventListener('click', fitView);
+
+        // Tab Buttons
+        document.getElementById('btn-new-tab').addEventListener('click', () => createNewTab());
+        document.getElementById('btn-duplicate-tab').addEventListener('click', duplicateActiveTab);
+
+        // Escape HTML Helper
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Render Everything
+        function renderAll() {
+            renderTabs();
+            updateCanvasTransform();
+            renderNodes();
+        }
+
+        // Boot Application
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            renderAll();
+        });
+    </script>
+</body>
+</html>
